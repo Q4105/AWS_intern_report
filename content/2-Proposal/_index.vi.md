@@ -1,0 +1,85 @@
+---
+title: "Bản đề xuất"
+date: 2026-07-30
+weight: 2
+chapter: false
+pre: " <b> 2. </b> "
+---
+
+# Toxic Text Moderation Platform
+## Hệ thống nhận diện ngôn từ tục tĩu / độc hại serverless trên AWS
+
+### 1. Tóm tắt điều hành
+Toxic Text Moderation Platform là hệ thống kiểm duyệt nội dung văn bản thời gian thực do nhóm 4 thành viên (Đức, Quốc, Khôi, Quân) xây dựng. Hệ thống nhận diện ngôn từ tục tĩu, xúc phạm trong bình luận **tiếng Việt và tiếng Anh** bằng mô hình text classifier do nhóm tự huấn luyện, kết hợp Amazon Bedrock làm "trọng tài" cho các trường hợp mô hình không chắc chắn. Toàn bộ hạ tầng chạy serverless (Lambda, API Gateway, DynamoDB, Amplify), chi phí gần như bằng 0 khi không có traffic, và người dùng có thể trải nghiệm trực tiếp qua website demo.
+
+### 2. Tuyên bố vấn đề
+*Vấn đề hiện tại*
+Các nền tảng có nội dung do người dùng tạo (bình luận, chat, diễn đàn) tại Việt Nam phải kiểm duyệt thủ công lượng lớn ngôn từ tục tĩu, xúc phạm. Kiểm duyệt thủ công chậm, tốn nhân lực và không nhất quán; còn các API kiểm duyệt thương mại nhóm đã khảo sát đều tối ưu cho tiếng Anh là chính, nên teencode, viết tắt và biến thể ký tự tiếng Việt như "đmm", "vcl" là nhóm ca chúng xử lý kém ổn định nhất.
+
+*Giải pháp*
+Nhóm tự fine-tune mô hình phân loại văn bản đa ngôn ngữ trên dataset công khai tiếng Việt **ViHSD**, đóng gói vào Lambda container để suy luận nhanh với chi phí thấp. Khi độ tin cậy (confidence) của mô hình thấp hơn ngưỡng, hệ thống chuyển câu sang Amazon Bedrock (Claude) để phân xử — cân bằng giữa tốc độ, chi phí và độ chính xác. Kết quả được lưu vào DynamoDB để thống kê và hiển thị lịch sử trên UI.
+
+*Lợi ích*
+Giảm khối lượng kiểm duyệt thủ công, trả kết quả trong khoảng 1 giây khi container đã warm, hỗ trợ tiếng Việt và — nhờ backbone đa ngôn ngữ — cả tiếng Anh, kiến trúc serverless không tốn chi phí cố định và dễ mở rộng thành API kiểm duyệt cho ứng dụng khác.
+
+### 3. Kiến trúc giải pháp
+Luồng xử lý, đánh số đúng như trên sơ đồ bên dưới:
+
+1. Trình duyệt tải ứng dụng React từ **Amplify Hosting** — Amplify chỉ phục vụ file tĩnh.
+2. Từ đây Amplify không còn nằm trên đường đi: chính trình duyệt gọi **POST /moderate** thẳng tới **API Gateway**, ở một origin khác với origin đã phục vụ trang. Đây chính là lý do phải cấu hình CORS cho cả preflight lẫn response thật.
+3. API Gateway gọi **Lambda** qua proxy integration.
+4. Container Lambda chạy model XLM-RoBERTa đã fine-tune (ONNX INT8) nằm sẵn trong image, cho ra nhãn kèm độ tin cậy.
+5. Nếu độ tin cậy < 0.7, request được đẩy sang **Amazon Bedrock (Claude 3 Haiku)**.
+6. Bedrock trả nhãn đã phân xử về lại Lambda.
+7. Dù đi nhánh nào, Lambda cũng ghi bản ghi vào **DynamoDB** đúng một lần.
+8. Kết quả trả ngược qua API Gateway về trình duyệt, kèm highlight các từ vi phạm.
+
+**IAM** cấp execution role cho Lambda theo đặc quyền tối thiểu, **CloudWatch** thu log và metric từ API Gateway, Lambda và Bedrock, **CloudTrail** ghi nhật ký hoạt động API ở cấp tài khoản. Artefact của model chỉ đi qua đường build: Colab → S3 → `docker build` → **ECR** → `UpdateFunctionCode` — không có lần tải model nào trong lúc xử lý request.
+
+![Sơ đồ kiến trúc](/images/2-Proposal/architecture.jpg)
+*(Sơ đồ do Trần Phan Đăng Khôi vẽ trên draw.io; Lê Đức và Trần Quân review.)*
+
+> **Không dùng VPC riêng — đây là lựa chọn có chủ đích.** Lambda chạy trong VPC do AWS quản lý. Function không truy cập tài nguyên private nào, nên đặt nó vào VPC riêng chỉ thêm NAT Gateway (tính tiền theo giờ dù không có traffic) và ENI attachment làm cold start dài hơn, mà không được lợi gì. DynamoDB, Bedrock và API Gateway được gọi qua service endpoint công khai của AWS với xác thực IAM SigV4, không đi qua internet công cộng.
+
+*Dịch vụ AWS sử dụng*
+- **AWS Amplify Hosting**: host UI React demo, CI/CD từ GitHub, HTTPS sẵn có.
+- **Amazon API Gateway**: REST API cho endpoint /moderate, throttling chống lạm dụng.
+- **AWS Lambda (container image)**: chạy suy luận mô hình XLM-RoBERTa đã fine-tune (ONNX INT8); serverless, chỉ trả tiền theo request.
+- **Amazon Bedrock (Claude Haiku)**: LLM phân xử các câu khó (mỉa mai, tiếng lóng mới), không cần tự host LLM.
+- **Amazon DynamoDB**: lưu lịch sử kiểm duyệt (requestId, câu, nhãn, confidence, timestamp).
+- **Amazon S3**: lưu dataset và model artifact. Chỉ dùng ở giai đoạn build — trọng số model đã nằm sẵn trong container image, không tải từ S3 lúc chạy request.
+- **Amazon ECR**: chứa container image của Lambda; image được pull và cache lúc tạo/cập nhật function, không phải mỗi lần gọi.
+- **Amazon CloudWatch**: logs, metrics, alarm (lỗi Lambda, độ trễ, chi phí).
+- **AWS CloudTrail**: nhật ký kiểm toán hoạt động API ở cấp tài khoản.
+- **AWS Organizations + IAM Identity Center**: quản lý tài khoản 4 thành viên, phân quyền least privilege.
+
+*Lý do chọn kiến trúc serverless*: không phải quản lý server, tự động scale theo traffic, chi phí theo mức dùng phù hợp dự án sinh viên, và thể hiện được nhiều dịch vụ AWS trong một use-case thực tế (vượt yêu cầu tối thiểu 3 dịch vụ).
+
+### 4. Mô hình AI và dữ liệu
+- **Dataset**: **ViHSD** (~33.000 bình luận tiếng Việt, nhãn CLEAN/OFFENSIVE/HATE) là dataset nhóm thực sự dùng để huấn luyện, giữ nguyên cách chia train/val/test gốc của dataset. ViCTSD và Jigsaw Toxic Comment Classification có được khảo sát như hướng mở rộng nhưng không dùng trong lần train cuối — backbone đa ngôn ngữ đã xử lý được tiếng Anh theo kiểu zero-shot.
+- **Baseline**: TF-IDF + Logistic Regression để có mốc so sánh.
+- **Mô hình chính**: fine-tune **XLM-RoBERTa-base**. Ban đầu nhóm đề xuất PhoBERT (vi) + DistilBERT (en), nhưng quyết định chuyển sang XLM-R vì một model duy nhất xử lý được đa ngôn ngữ (zero-shot cross-lingual) và đơn giản hóa triển khai; xuất ONNX/quantize INT8 để giảm cold-start trên Lambda.
+- **Đánh giá**: Accuracy, Precision/Recall, F1-score, Confusion Matrix; mục tiêu F1 ≥ 0.85 trên tập test.
+
+### 5. Timeline (15/07 – 31/07)
+- **15–19/07 (Phase kỹ thuật)**: setup AWS Organization và budget alarm (Quân, Đức); thu thập và huấn luyện mô hình (Khôi, Quốc); dựng hạ tầng và backend (Đức, Quân); UI demo và deploy Amplify (Quốc, Khôi); test end-to-end.
+- **20–31/07 (Phase báo cáo)**: viết báo cáo song ngữ theo template, vẽ biểu đồ kết quả, viết và đăng bài blog lên AWS Study Group, review chéo, clean-up tài nguyên.
+
+### 6. Ước tính ngân sách
+- AWS Lambda: ~0 USD (trong free tier, ~5.000 request demo).
+- API Gateway: ~0,02 USD.
+- DynamoDB (on-demand): ~0 USD (free tier).
+- S3: ~0,05 USD (2–3 GB dataset + model).
+- ECR: ~0,10 USD (1 image ~2 GB).
+- Amplify Hosting: ~0,15 USD.
+- Amazon Bedrock (Claude Haiku): ~0,50 USD — chỉ những câu model không chắc chắn (confidence < 0.7) mới gọi Bedrock, chiếm phần nhỏ tổng traffic, nên mức này đã tính dư an toàn.
+- **Tổng ước tính: < 1 USD cho toàn bộ giai đoạn demo.** Huấn luyện mô hình thực hiện trên Google Colab / SageMaker Studio Lab (miễn phí) nên không phát sinh chi phí GPU.
+
+### 7. Đánh giá rủi ro
+- **Cold-start Lambda với image lớn** (ảnh hưởng trung bình, xác suất cao): quantize model, tăng memory Lambda, cân nhắc provisioned concurrency khi demo.
+- **Model kém với tiếng lóng/teencode mới** (trung bình, trung bình): lớp Bedrock phân xử + bổ sung từ điển chuẩn hóa trước khi suy luận.
+- **Vượt ngân sách Bedrock** (thấp, thấp): đặt ngưỡng confidence hợp lý, budget alarm, giới hạn độ dài input.
+- **Trễ tiến độ** (trung bình, trung bình): phân công song song 2 nhánh tech (AWS vs AI/UI), có ngày 19/07 làm buffer.
+
+### 8. Kết quả kỳ vọng
+Website demo public cho phép nhập câu bất kỳ và nhận kết quả phân loại kèm highlight từ tục tĩu trong khoảng 1 giây khi container Lambda đã warm; báo cáo song ngữ đầy đủ theo template FCJ; 1 bài blog kỹ thuật chia sẻ trên AWS Study Group; toàn bộ hạ tầng có thể tái tạo theo hướng dẫn step-by-step trong mục Workshop.
