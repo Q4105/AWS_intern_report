@@ -1,6 +1,6 @@
 # URL that cua bao cao tren GitHub Pages.
 # GitHub Action tu tinh lai baseURL luc build nen doi ten repo cung khong vo CSS.
-baseURL = "https://dangkhoi-dev.github.io/FCAJ-intern/"
+baseURL = "https://Q4105.github.io/AWS_intern_report/"
 relativeURLs = false
 canonifyURLs = false
 defaultContentLanguage = "en"
@@ -18,7 +18,7 @@ home = [ "HTML", "RSS", "JSON"]
   # Git hub repo link
   editURL = ""
   description = ""
-  author = "khoi.tranphandang@hcmut.edu.vn"
+  author = "quoc.nguyenkien@hcmut.edu.vn"
   showVisitedLinks = true
   disableBreadcrumb = false
   disableNextPrev = false
