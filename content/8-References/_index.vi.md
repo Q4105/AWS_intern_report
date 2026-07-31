@@ -11,7 +11,7 @@ pre: " <b> 8. </b> "
 | Hạng mục | Link |
 |---|---|
 | 🌐 Website demo (Amplify Hosting) | <https://staging.d195tgjspr8fol.amplifyapp.com/> |
-| 💻 Source code — `fcaj-moderation` (Lambda container + frontend React) | <https://github.com/dangkhoi-dev/FCAJ-intern> |
+| 💻 Source code — `fcaj-moderation` (Lambda container + frontend React) | https://github.com/Q4105/AWS_intern_report |
 | 📓 Notebook huấn luyện `train_text_classifier.ipynb` | <https://github.com/dangkhoi-dev/FCAJ-intern/blob/main/train_text_classifier.ipynb> |
 | 🎥 Video demo - chạy thử trọn 5 kịch bản kiểm duyệt | [Thư mục Google Drive](https://drive.google.com/drive/folders/1XJQKyHK-BFxbIw5PF8m4Qtrqee273UM0?usp=sharing) |
 | 📝 Blog 1 — Xây dựng hệ thống kiểm duyệt nội dung serverless với Lambda + Amazon Bedrock (Trần Phan Đăng Khôi) | [Bài đăng Facebook](https://www.facebook.com/groups/awsstudygroupfcj/permalink/2226726084759018/) |

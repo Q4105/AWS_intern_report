@@ -11,7 +11,7 @@ pre: " <b> 8. </b> "
 | Item | Link |
 |---|---|
 | 🌐 Demo website (Amplify Hosting) | <https://staging.d195tgjspr8fol.amplifyapp.com/> |
-| 💻 Source code — `fcaj-moderation` (Lambda container + React frontend) | <https://github.com/dangkhoi-dev/FCAJ-intern> |
+| 💻 Source code — `fcaj-moderation` (Lambda container + React frontend) | https://github.com/Q4105/AWS_intern_report |
 | 📓 Training notebook `train_text_classifier.ipynb` | <https://github.com/dangkhoi-dev/FCAJ-intern/blob/main/train_text_classifier.ipynb> |
 | 🎥 Demo video - end-to-end walkthrough of all five moderation scenarios | [Google Drive folder](https://drive.google.com/drive/folders/1XJQKyHK-BFxbIw5PF8m4Qtrqee273UM0?usp=sharing) |
 | 📝 Blog 1 — Building a serverless content-moderation system with Lambda + Amazon Bedrock (Tran Phan Dang Khoi) | [Facebook post](https://www.facebook.com/groups/awsstudygroupfcj/permalink/2226726084759018/) |
